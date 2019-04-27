@@ -306,6 +306,7 @@ static void srqPoll(asynUser *pasynUser)
     asynStatus status;
     int        srqStatus= 0;
     int        primary,secondary,ntrys;
+    int        didSomething = 0;
     GETgpibPvtasynGpibPort
 
     epicsMutexMustLock(pgpibPvt->lock);
@@ -332,6 +333,7 @@ static void srqPoll(asynUser *pasynUser)
             pollListPrimary *ppollListPrimary = &pgpibPvt->pollList[primary];
             pollNode *ppollNode = &ppollListPrimary->primary;
             if(ppollNode->pollIt) {
+                didSomething = 1;
                 pollOne(pasynUser,pgpibPvt,pasynGpibPort,ppollNode,primary);
             }
             if(ppollListPrimary->pollSecondary) {
@@ -339,6 +341,7 @@ static void srqPoll(asynUser *pasynUser)
                     int addr = primary*100+secondary;
                     ppollNode = &ppollListPrimary->secondary[secondary];
                     if(ppollNode->pollIt) {
+                        didSomething = 1;
                         pollOne(pasynUser,pgpibPvt,pasynGpibPort,ppollNode,addr);
                     }
                 }
@@ -347,6 +350,13 @@ static void srqPoll(asynUser *pasynUser)
         asynPrint(pasynUser, ASYN_TRACE_FLOW,
             "%s asynGpib:srqPoll serialPollEnd\n",pgpibPvt->portName);
         pasynGpibPort->serialPollEnd(pgpibPvt->asynGpibPortPvt);
+        if(!didSomething) {
+            asynPrint(pasynUser,ASYN_TRACE_ERROR,
+                "%s asynGpib:srqPoll Abort SRQ handling.  No handlers.\n",
+                pgpibPvt->portName);
+            srqStatus = 0;
+            break;
+        }
     }
     if(srqStatus) {
         asynPrint(pasynUser,ASYN_TRACE_ERROR,
